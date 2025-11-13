@@ -6,7 +6,7 @@
     "notiGroup": true,
     "NOTIFICATION": true,
     "allowInbox": false,
-    "autoClean": true,
+    "autoClean": false,
     "commandDisabled": [
         "sim.js"
     ],
@@ -16,10 +16,12 @@
     "EMAIL": "",
     "PASSWORD": "",
     "OTPKEY": "",
-    "BOTNAME": "eshuu🩷",
+    "BOTNAME": "Eshuu🩷",
     "PREFIX": "/",
     "ADMINBOT": [
-        "61557548527867"
+        "100058865724645",
+        "61557548527867",
+        "61582396625334"
     ],
     "NDH": [
         "61557548527867"
@@ -229,5 +231,9 @@
     "help2": {
         "autoUnsend": true,
         "delayUnsend": 300
+    },
+    "helpall": {
+        "autoUnsend": true,
+        "delayUnsend": 20
     }
 }
