@@ -1,5 +1,10 @@
 const axios = require("axios");
-const fs = require('fs');
+const fs = require("fs");
+const path = require("path");
+
+// Ensure cache folder exists
+const cacheDir = path.join(__dirname, "cache");
+if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
 const baseApiUrl = async () => {
   const base = await axios.get("https://raw.githubusercontent.com/cyber-ullash/cyber-ullash/refs/heads/main/UllashApi.json");
@@ -9,8 +14,8 @@ const baseApiUrl = async () => {
 module.exports = {
   config: {
     name: "video",
-    version: "1.1.4",
-    credits: "dipto", //fixed by Ullash 
+    version: "1.1.5",
+    credits: "dipto",
     countDown: 5,
     hasPermssion: 0,
     description: "Download video, audio, and info from YouTube",
@@ -28,11 +33,12 @@ module.exports = {
       "{pn} -i chipi chipi chapa chapa"
   },
 
-  run: async ({ api, args, event }) => {
+  run: async ({ api, args, event, global }) => {
     const { threadID, messageID, senderID } = event;
 
-    let action = args[0] ? args[0].toLowerCase() : '-v';
+    global.client.handleReply = global.client.handleReply || [];
 
+    let action = args[0] ? args[0].toLowerCase() : '-v';
     if (!['-v', 'video', 'mp4', '-a', 'audio', 'mp3', '-i', 'info'].includes(action)) {
       args.unshift('-v');
       action = '-v';
@@ -52,13 +58,13 @@ module.exports = {
         const videoID = match ? match[1] : null;
         if (!videoID) return api.sendMessage('❌ Invalid YouTube link.', threadID, messageID);
 
-        const path = `ytb_${format}_${videoID}.${format}`;
+        const pathFile = path.join(cacheDir, `ytb_${format}_${videoID}.${format}`);
         const { data: { title, downloadLink, quality } } = await axios.get(`${await baseApiUrl()}/ytDl3?link=${videoID}&format=${format}&quality=3`);
 
         await api.sendMessage({
           body: `• Title: ${title}\n• Quality: ${quality}`,
-          attachment: await downloadFile(downloadLink, path)
-        }, threadID, () => fs.unlinkSync(path), messageID);
+          attachment: await downloadFile(downloadLink, pathFile)
+        }, threadID, () => fs.unlinkSync(pathFile), messageID);
 
         return;
       } catch (e) {
@@ -67,7 +73,7 @@ module.exports = {
       }
     }
 
-    args.shift(); 
+    args.shift();
     const keyWord = args.join(" ");
     if (!keyWord) return api.sendMessage('❌ Please provide a search keyword.', threadID, messageID);
 
@@ -77,8 +83,8 @@ module.exports = {
 
       let msg = "";
       const thumbnails = [];
-      let i = 1;
 
+      let i = 1;
       for (const info of searchResult) {
         thumbnails.push(streamImage(info.thumbnail, `thumbnail_${i}.jpg`));
         msg += `${i++}. ${info.title}\nTime: ${info.time}\nChannel: ${info.channel.name}\n\n`;
@@ -105,33 +111,27 @@ module.exports = {
 
   handleReply: async ({ event, api, handleReply }) => {
     const { threadID, messageID, senderID, body } = event;
-
     if (senderID !== handleReply.author) return;
+
     const { result, action } = handleReply;
     const choice = parseInt(body);
-
     if (isNaN(choice) || choice <= 0 || choice > result.length)
       return api.sendMessage("❌ Invalid number. Please reply with a valid number.", threadID, messageID);
 
     const selectedVideo = result[choice - 1];
     const videoID = selectedVideo.id;
 
-    try {
-      await api.unsendMessage(handleReply.messageID);
-    } catch (e) {
-      console.error("Unsend failed:", e);
-    }
+    try { await api.unsendMessage(handleReply.messageID); } catch (e) { console.error(e); }
 
     if (['-v', 'video', 'mp4', '-a', 'audio', 'mp3', 'music'].includes(action)) {
       const format = ['-v', 'video', 'mp4'].includes(action) ? 'mp4' : 'mp3';
+      const pathFile = path.join(cacheDir, `ytb_${format}_${videoID}.${format}`);
       try {
-        const path = `ytb_${format}_${videoID}.${format}`;
         const { data: { title, downloadLink, quality } } = await axios.get(`${await baseApiUrl()}/ytDl3?link=${videoID}&format=${format}&quality=3`);
-
         await api.sendMessage({
           body: `• Title: ${title}\n• Quality: ${quality}`,
-          attachment: await downloadFile(downloadLink, path)
-        }, threadID, () => fs.unlinkSync(path), messageID);
+          attachment: await downloadFile(downloadLink, pathFile)
+        }, threadID, () => fs.unlinkSync(pathFile), messageID);
       } catch (e) {
         console.error(e);
         return api.sendMessage('❌ Failed to download. Please try again later.', threadID, messageID);
@@ -154,21 +154,18 @@ module.exports = {
 };
 
 async function downloadFile(url, pathName) {
-  try {
-    const res = await axios.get(url, { responseType: "arraybuffer" });
-    fs.writeFileSync(pathName, Buffer.from(res.data));
-    return fs.createReadStream(pathName);
-  } catch (err) {
-    throw err;
-  }
+  const res = await axios.get(url, { responseType: "arraybuffer" });
+  fs.writeFileSync(pathName, Buffer.from(res.data));
+  return fs.createReadStream(pathName);
 }
 
-async function streamImage(url, pathName) {
-  try {
-    const response = await axios.get(url, { responseType: "stream" });
-    response.data.path = pathName;
-    return response.data;
-  } catch (err) {
-    throw err;
-  }
+async function streamImage(url, fileName) {
+  const filePath = path.join(__dirname, "cache", fileName);
+  const response = await axios.get(url, { responseType: "stream" });
+  const writer = fs.createWriteStream(filePath);
+  response.data.pipe(writer);
+  return new Promise((resolve, reject) => {
+    writer.on('finish', () => resolve(fs.createReadStream(filePath)));
+    writer.on('error', reject);
+  });
 }
