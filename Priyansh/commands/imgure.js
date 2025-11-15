@@ -1,78 +1,54 @@
-const axios = require("axios");
-const FormData = require("form-data");
-const fs = require("fs");
-const { downloadFile } = require("../../utils/index.js");
-
 module.exports.config = {
   name: "imgur",
-  version: "2.0.0",
+  version: "1.0.0",
   hasPermssion: 0,
-  credits: "Priyansh Rajput",
-  description: "Upload images/videos to Imgur using your custom API",
-  commandCategory: "Utilities",
-  usages: "[reply]",
-  cooldowns: 5
+  credits: "N-E-R-O-B",
+  description: "Upload an image to Imgur and get the link",
+  commandCategory: "Other",
+  usages: "Reply to an image with: imgur",
+  cooldowns: 0,
 };
 
 module.exports.run = async ({ api, event }) => {
-  const { threadID, type, messageReply, messageID } = event;
+  const axios = global.nodemodule['axios'];
 
-  if (type !== "message_reply" || !messageReply.attachments.length) {
-    return api.sendMessage("⚠ Reply to an image/video to upload!", threadID, messageID);
-  }
+  try {
+    const apis = await axios.get(
+      "https://raw.githubusercontent.com/shaonproject/Shaon/main/api.json"
+    );
+    const Shaon = apis.data.imgur;
 
-  const attachmentSend = [];
-
-  // Download all attachments to /tmp
-  async function getAttachments(attachments) {
-    let i = 0;
-    for (const data of attachments) {
-      const ext = data.type === "photo" ? "jpg" :
-                  data.type === "video" ? "mp4" :
-                  data.type === "animated_image" ? "gif" :
-                  data.type === "audio" ? "m4a" : "dat";
-      const path = `/tmp/file_${i}.${ext}`;
-      await downloadFile(data.url, path);
-      attachmentSend.push(path);
-      i++;
-    }
-  }
-
-  // Upload multiple files to your hosted API
-  async function uploadFiles(paths) {
-    const form = new FormData();
-    for (const file of paths) {
-      form.append("files", fs.createReadStream(file));
+    // Check for reply image
+    if (
+      !event.messageReply ||
+      !event.messageReply.attachments ||
+      !event.messageReply.attachments[0]
+    ) {
+      return api.sendMessage(
+        "📌 Please reply to an image that you want to upload to Imgur.",
+        event.threadID,
+        event.messageID
+      );
     }
 
-    try {
-      const res = await axios.post("https://priyanshuapi.xyz/imgur-upload", form, {
-        headers: form.getHeaders(),
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
-      });
+    const linkanh = event.messageReply.attachments[0].url;
 
-      return res.data.urls || [];
-    } catch (err) {
-      console.error("❌ Upload failed:", err.response?.data || err.message);
-      return [];
-    }
-  }
+    const res = await axios.get(
+      `${Shaon}/imgur?link=${encodeURIComponent(linkanh)}`
+    );
 
-  // Download files
-  await getAttachments(messageReply.attachments);
+    const img = res.data.uploaded.image;
 
-  // Upload to your API
-  const links = await uploadFiles(attachmentSend);
-
-  // Delete temp files
-  for (const file of attachmentSend) fs.unlinkSync(file);
-
-  // Send result
-  if (links.length > 0) {
-    const msg = links.map(link => `✅ ${link}`).join("\n");
-    return api.sendMessage(`🚀 Uploaded ${links.length} file(s) to Imgur:\n${msg}`, threadID, messageID);
-  } else {
-    return api.sendMessage("❌ Upload failed.", threadID, messageID);
+    return api.sendMessage(
+      `✔️ Your Imgur Link:\n${img}`,
+      event.threadID,
+      event.messageID
+    );
+  } catch (err) {
+    return api.sendMessage(
+      "❌ Failed to upload the image. Please try again.",
+      event.threadID,
+      event.messageID
+    );
   }
 };
