@@ -1,17 +1,17 @@
-module.exports.config = {
+Module.exports.config = {
   name: "pair",
-  version: "2.0.0",
+  version: "2.0.1", // Updated version after enhancements
   hasPermssion: 0,
-  credits: "𝐏𝐫𝐢𝐲𝐚𝐧𝐬𝐡 𝐑𝐚𝐣𝐩𝐮𝐭 + Nerob Upgrade",
-  description: "Compatibility pairing",
-  commandCategory: "Giải trí",
-  usages: "",
+  credits: "𝐏𝐫𝐢𝐲𝐚𝐧𝐬𝐡 𝐑𝐚𝐣𝐩𝐮𝐭 + Nerob Upgrade + Gemini Enhancement",
+  description: "Compatibility pairing for entertainment. Tries to pair with the opposite gender.",
+  commandCategory: "love",
+  usages: "[No arguments]",
   dependencies: {
     "axios": "",
     "fs-extra": "",
     "canvas": ""
   },
-  cooldowns: 0
+  cooldowns: 5
 }
 
 module.exports.run = async function ({ args, Users, Threads, api, event }) {
@@ -20,6 +20,7 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
   const fs = global.nodemodule["fs-extra"];
   const axios = global.nodemodule["axios"];
 
+  // File paths for caching images
   let pathImg = __dirname + "/cache/background.png";
   let pathAvt1 = __dirname + "/cache/avt1.png";
   let pathAvt2 = __dirname + "/cache/avt2.png";
@@ -27,7 +28,12 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
   var id1 = event.senderID;
   var name1 = await Users.getNameUser(id1);
 
-  var threadInfo = await api.getThreadInfo(event.threadID);
+  try {
+    var threadInfo = await api.getThreadInfo(event.threadID);
+  } catch (e) {
+    return api.sendMessage("❌ Could not retrieve thread information.", event.threadID, event.messageID);
+  }
+
   var all = threadInfo.userInfo;
 
   let gender1;
@@ -36,24 +42,32 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
   const botID = api.getCurrentUserID();
   let selected = [];
 
+  // --- Pairing Logic: Selects opposite gender members ---
   if (gender1 === "FEMALE") {
-    selected = all.filter(u => u.gender === "MALE" && u.id !== id1 && u.id !== botID).map(u => u.id);
+    selected = all.filter(u => u.gender === "MALE" && u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
   } else if (gender1 === "MALE") {
-    selected = all.filter(u => u.gender === "FEMALE" && u.id !== id1 && u.id !== botID).map(u => u.id);
+    selected = all.filter(u => u.gender === "FEMALE" && u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
   } else {
-    selected = all.filter(u => u.id !== id1 && u.id !== botID).map(u => u.id);
+    // Fallback if gender is unknown or user is not a friend
+    selected = all.filter(u => u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
   }
 
+  // --- CHECK FOR AVAILABLE PARTNERS ---
+  if (selected.length === 0) {
+      return api.sendMessage("😔 The thread doesn't have any suitable partners (opposite gender or non-bot/non-self) to pair with.", event.threadID, event.messageID);
+  }
+  
+  // Select the random partner
   var id2 = selected[Math.floor(Math.random() * selected.length)];
   var name2 = await Users.getNameUser(id2);
 
-  // SPECIAL FIXED PAIR LOGIC
+  // SPECIAL FIXED PAIR LOGIC (For custom hardcoded IDs)
   const femaleID = "61582396625334";
   const maleID   = "61557548527867";
 
   let compatibility = Math.floor(Math.random() * 100) + 1;
-
   let isInfinity = false;
+
   if ((id1 === femaleID && id2 === maleID) || (id1 === maleID && id2 === femaleID)) {
     compatibility = "♾️";
     isInfinity = true;
@@ -81,7 +95,7 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
     ? infinityCaption
     : normalCaptions[Math.floor(Math.random() * normalCaptions.length)];
 
-  // IMAGES  
+  // IMAGES (Fetching and processing)
   let bgLinks = [
     "https://i.postimg.cc/wjJ29HRB/background1.png",
     "https://i.postimg.cc/zf4Pnshv/background2.png",
@@ -90,54 +104,71 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
 
   let selectedBG = bgLinks[Math.floor(Math.random() * bgLinks.length)];
 
-  let avt1 = (
-    await axios.get(
-      `https://graph.facebook.com/${id1}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
-      { responseType: "arraybuffer" }
-    )
-  ).data;
-  fs.writeFileSync(pathAvt1, Buffer.from(avt1, "utf-8"));
+  try {
+    // 1. Fetch and save Avatars
+    let avt1 = (
+      await axios.get(
+        `https://graph.facebook.com/${id1}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        { responseType: "arraybuffer" }
+      )
+    ).data;
+    fs.writeFileSync(pathAvt1, Buffer.from(avt1, "utf-8"));
 
-  let avt2 = (
-    await axios.get(
-      `https://graph.facebook.com/${id2}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
-      { responseType: "arraybuffer" }
-    )
-  ).data;
-  fs.writeFileSync(pathAvt2, Buffer.from(avt2, "utf-8"));
+    let avt2 = (
+      await axios.get(
+        `https://graph.facebook.com/${id2}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        { responseType: "arraybuffer" }
+      )
+    ).data;
+    fs.writeFileSync(pathAvt2, Buffer.from(avt2, "utf-8"));
 
-  let bg = (
-    await axios.get(selectedBG, { responseType: "arraybuffer" })
-  ).data;
-  fs.writeFileSync(pathImg, Buffer.from(bg, "utf-8"));
+    // 2. Fetch and save Background
+    let bg = (
+      await axios.get(selectedBG, { responseType: "arraybuffer" })
+    ).data;
+    fs.writeFileSync(pathImg, Buffer.from(bg, "utf-8"));
 
-  let baseBG = await loadImage(pathImg);
-  let baseA1 = await loadImage(pathAvt1);
-  let baseA2 = await loadImage(pathAvt2);
+    // 3. Load Images onto Canvas
+    let baseBG = await loadImage(pathImg);
+    let baseA1 = await loadImage(pathAvt1);
+    let baseA2 = await loadImage(pathAvt2);
 
-  let canvas = createCanvas(baseBG.width, baseBG.height);
-  let ctx = canvas.getContext("2d");
+    let canvas = createCanvas(baseBG.width, baseBG.height);
+    let ctx = canvas.getContext("2d");
 
-  ctx.drawImage(baseBG, 0, 0, canvas.width, canvas.height);
-  ctx.drawImage(baseA1, 100, 150, 300, 300);
-  ctx.drawImage(baseA2, 900, 150, 300, 300);
+    ctx.drawImage(baseBG, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(baseA1, 100, 150, 300, 300);
+    ctx.drawImage(baseA2, 900, 150, 300, 300);
 
-  fs.writeFileSync(pathImg, canvas.toBuffer());
-  fs.removeSync(pathAvt1);
-  fs.removeSync(pathAvt2);
+    // 4. Save Final Image
+    fs.writeFileSync(pathImg, canvas.toBuffer());
+    
+  } catch (e) {
+      // General error handling for image creation/fetching
+      console.error("Error generating image in pair command:", e);
+      // Clean up intermediate files
+      if (fs.existsSync(pathAvt1)) fs.removeSync(pathAvt1);
+      if (fs.existsSync(pathAvt2)) fs.removeSync(pathAvt2);
+      return api.sendMessage(`An error occurred during image processing: ${e.message}`, event.threadID, event.messageID);
+  } finally {
+      // Ensure Avatars are removed after processing
+      if (fs.existsSync(pathAvt1)) fs.removeSync(pathAvt1);
+      if (fs.existsSync(pathAvt2)) fs.removeSync(pathAvt2);
+  }
 
+  // Final message sending
   return api.sendMessage(
     {
       body:
 `${caption}
 
 ✨ 𝗣𝗮𝗶𝗿𝗲𝗱: ${name1} 💞 ${name2}
-💘 𝗖𝗼𝗺𝗽𝗮𝘁𝗶𝗯𝗶𝗹𝗶𝘁𝘆: ${compatibility}%`,
+💘 𝗖𝗼𝗺𝗽𝗮𝘁𝗶𝗯𝗶𝗹𝗶𝘁𝘆: ${compatibility}${isInfinity ? '' : '%'}`, // Removes '%' if compatibility is infinity
       mentions: [{ tag: name2, id: id2 }],
       attachment: fs.createReadStream(pathImg)
     },
     event.threadID,
-    () => fs.unlinkSync(pathImg),
+    () => fs.unlinkSync(pathImg), // Clean up final image after sending
     event.messageID
   );
 };
