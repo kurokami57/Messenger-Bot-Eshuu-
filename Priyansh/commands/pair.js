@@ -98,7 +98,7 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
   // IMAGES (Fetching and processing)
   // *** NEW BACKGROUND IMAGE LINK ***
   let bgLinks = [
-    "https://i.imgur.com/L1pBv4O.png", // Eren and Mikasa image
+    "https://i.imgur.com/P8ATVjE.jpeg", // Eren and Mikasa image
     "https://i.imgur.com/P8ATVjE.jpeg" // Original background (kept as backup)
   ];
 
