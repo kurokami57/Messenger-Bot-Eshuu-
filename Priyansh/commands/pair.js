@@ -21,7 +21,7 @@ module.exports.run = async function ({ args, Users, Threads, api, event }) {
   const axios = global.nodemodule["axios"];
 
   // File paths for caching images
-  let pathImg = __dirname + "/cache/background.png";
+  let pathImg = __dirname + "/cache/canvas/Pair.jpg";
   let pathAvt1 = __dirname + "/cache/avt1.png";
   let pathAvt2 = __dirname + "/cache/avt2.png";
 
