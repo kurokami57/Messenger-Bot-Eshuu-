@@ -1,206 +1,166 @@
+const fs = require("fs-extra");
+const axios = require("axios");
+const { loadImage, createCanvas } = require("canvas");
+
 module.exports.config = {
   name: "pair",
-  version: "2.1.0", // Updated version for new background and coordinates
+  version: "3.0.0",
   hasPermssion: 0,
-  credits: "Nerob Upgrade + Gemini Enhancement",
-  description: "Compatibility pairing for entertainment. Tries to pair with the opposite gender.",
+  credits: "Nerob + Fixed by ChatGPT",
+  description: "Pairs you with someone of opposite gender with canvas image",
   commandCategory: "love",
-  usages: "[No arguments]",
+  usages: "",
   dependencies: {
     "axios": "",
     "fs-extra": "",
     "canvas": ""
   },
-  cooldowns: 5
-}
+  cooldowns: 5,
+};
 
-module.exports.run = async function ({ args, Users, Threads, api, event }) {
-
-  const { loadImage, createCanvas } = require("canvas");
-  const fs = global.nodemodule["fs-extra"];
-  const axios = global.nodemodule["axios"];
-
-  // File paths for caching images
-  let pathImg = __dirname + "/cache/canvas/Pair.jpg";
-  let pathAvt1 = __dirname + "/cache/avt1.png";
-  let pathAvt2 = __dirname + "/cache/avt2.png";
-
-  var id1 = event.senderID;
-  var name1 = await Users.getNameUser(id1);
-
+module.exports.run = async function ({ api, event, Users }) {
   try {
-    var threadInfo = await api.getThreadInfo(event.threadID);
-  } catch (e) {
-    return api.sendMessage("❌ Could not retrieve thread information.", event.threadID, event.messageID);
-  }
+    // === Ensure folders exist ===
+    const cacheCanvas = __dirname + "/cache/canvas";
+    if (!fs.existsSync(cacheCanvas)) fs.mkdirSync(cacheCanvas, { recursive: true });
 
-  var all = threadInfo.userInfo;
+    const pathBG = __dirname + "/cache/canvas/pair.jpg";
+    const pathAvt1 = __dirname + "/cache/canvas/avt1.png";
+    const pathAvt2 = __dirname + "/cache/canvas/avt2.png";
+    const pathFinal = __dirname + "/cache/canvas/pairing.png";
 
-  let gender1;
-  for (let u of all) if (u.id == id1) gender1 = u.gender;
+    const threadInfo = await api.getThreadInfo(event.threadID);
+    const all = threadInfo.userInfo;
 
-  const botID = api.getCurrentUserID();
-  let selected = [];
+    const sender = event.senderID;
+    const senderName = await Users.getNameUser(sender);
+    const botID = api.getCurrentUserID();
 
-  // --- Pairing Logic: Selects opposite gender members ---
-  if (gender1 === "FEMALE") {
-    selected = all.filter(u => u.gender === "MALE" && u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
-  } else if (gender1 === "MALE") {
-    selected = all.filter(u => u.gender === "FEMALE" && u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
-  } else {
-    // Fallback if gender is unknown or user is not a friend
-    selected = all.filter(u => u.id !== id1 && u.id !== botID && !u.isFriend).map(u => u.id);
-  }
+    let senderGender = all.find(u => u.id == sender)?.gender || null;
 
-  // --- CHECK FOR AVAILABLE PARTNERS ---
-  if (selected.length === 0) {
-      return api.sendMessage("😔 The thread doesn't have any suitable partners (opposite gender or non-bot/non-self) to pair with.", event.threadID, event.messageID);
-  }
-  
-  // Select the random partner
-  var id2 = selected[Math.floor(Math.random() * selected.length)];
-  var name2 = await Users.getNameUser(id2);
+    // === FILTER FOR OPPOSITE GENDER ===
+    let candidates = all.filter(u =>
+      u.id !== sender &&
+      u.id !== botID &&
+      u.gender !== undefined &&
+      u.gender !== null
+    );
 
-  // SPECIAL FIXED PAIR LOGIC (For custom hardcoded IDs)
-  const femaleID = "61582396625334";
-  const maleID   = "61557548527867";
+    if (senderGender === "MALE") {
+      candidates = candidates.filter(u => u.gender === "FEMALE");
+    } else if (senderGender === "FEMALE") {
+      candidates = candidates.filter(u => u.gender === "MALE");
+    }
 
-  let compatibility = Math.floor(Math.random() * 100) + 1;
-  let isInfinity = false;
+    // fallback if no opposite gender
+    if (candidates.length === 0) {
+      candidates = all.filter(u => u.id !== sender && u.id !== botID);
+    }
 
-  if ((id1 === femaleID && id2 === maleID) || (id1 === maleID && id2 === femaleID)) {
-    compatibility = "♾️";
-    isInfinity = true;
-  }
+    if (candidates.length === 0)
+      return api.sendMessage("❌ No valid partner found.", event.threadID, event.messageID);
 
-  // CAPTIONS
-  let normalCaptions = [
-    "💞 𝑺𝒕𝒂𝒓𝒔 𝒂𝒍𝒊𝒈𝒏𝒆𝒅, 𝒉𝒆𝒂𝒓𝒕𝒔 𝒄𝒐𝒏𝒏𝒆𝒄𝒕𝒆𝒅!",
-    "✨ 𝑨 𝒑𝒆𝒓𝒇𝒆𝒄𝒕 𝒗𝒊𝒃𝒆 𝒎𝒂𝒕𝒄𝒉!",
-    "❤️ 𝑨 𝒔𝒘𝒆𝒆𝒕 𝒄𝒉𝒂𝒏𝒄𝒆 𝒐𝒇 𝒍𝒐𝒗𝒆!",
-    "💗 𝑨 𝒃𝒍𝒆𝒔𝒔𝒆𝒅 𝒑𝒂𝒊𝒓𝒊𝒏𝒈!",
-    "💘 𝑳𝒐𝒗𝒆 𝒓𝒂𝒅𝒊𝒂𝒕𝒆𝒔 𝒃𝒆𝒕𝒘𝒆𝒆𝒏 𝒕𝒉𝒆𝒎!",
-    "💖 𝑨 𝒑𝒖𝒓𝒆 𝒂𝒏𝒅 𝒔𝒐𝒇𝒕 𝒄𝒐𝒏𝒏𝒆𝒄𝒕𝒊𝒐𝒏!",
-    "🌸 𝑯𝒆𝒂𝒓𝒕𝒔 𝒇𝒊𝒏𝒅 𝒕𝒉𝒆𝒊𝒓 𝒘𝒂𝒚!",
-    "🔥 𝑨𝒕𝒕𝒓𝒂𝒄𝒕𝒊𝒐𝒏 𝒊𝒔 𝒓𝒆𝒂𝒍!",
-    "🌙 𝑭𝒂𝒕𝒆 𝒇𝒐𝒓𝒎𝒔 𝒔𝒐𝒎𝒆 𝒃𝒆𝒂𝒖𝒕𝒚!",
-    "💫 𝑷𝒆𝒓𝒇𝒆𝒄𝒕 𝒆𝒏𝒆𝒓𝒈𝒚 𝒗𝒊𝒃𝒆!",
-    "❤️‍🔥 𝑨 𝒄𝒉𝒂𝒓𝒎𝒊𝒏𝒈 𝒃𝒐𝒏𝒅!"
-  ];
+    // pick random partner
+    const partner = candidates[Math.floor(Math.random() * candidates.length)];
+    const partnerName = await Users.getNameUser(partner.id);
 
-  let infinityCaption =
-    "💝 𝑻𝒘𝒐 𝒔𝒐𝒖𝒍𝒔, 𝒐𝒏𝒆 𝒅𝒆𝒔𝒕𝒊𝒏𝒚 — 𝒂 𝒍𝒐𝒗𝒆 𝒕𝒉𝒂𝒕’𝒔 𝒆𝒕𝒆𝒓𝒏𝒂𝒍 ♾️✨";
+    // === COMPATIBILITY ===
+    const specialFemale = "61582396625334";
+    const specialMale = "61557548527867";
 
-  const caption = isInfinity
-    ? infinityCaption
-    : normalCaptions[Math.floor(Math.random() * normalCaptions.length)];
+    let compatibility = Math.floor(Math.random() * 100) + 1;
+    if (
+      (sender === specialFemale && partner.id === specialMale) ||
+      (sender === specialMale && partner.id === specialFemale)
+    ) {
+      compatibility = "♾️";
+    }
 
-  // IMAGES (Fetching and processing)
-  // *** NEW BACKGROUND IMAGE LINK ***
-  let bgLinks = [
-    "https://i.imgur.com/P8ATVjE.jpeg", // Eren and Mikasa image
-    "https://i.imgur.com/P8ATVjE.jpeg" // Original background (kept as backup)
-  ];
+    // === CAPTION ===
+    const captions = [
+      "💞 𝑺𝒕𝒂𝒓𝒔 𝒂𝒍𝒊𝒈𝒏𝒆𝒅!",
+      "✨ 𝑨 𝒑𝒆𝒓𝒇𝒆𝒄𝒕 𝒗𝒊𝒃𝒆!",
+      "❤️ 𝑺𝒘𝒆𝒆𝒕 𝒍𝒐𝒗𝒆 𝒎𝒂𝒕𝒄𝒉!",
+      "💘 𝑩𝒍𝒆𝒔𝒔𝒆𝒅 𝒑𝒂𝒊𝒓!",
+      "🔥 𝑨𝒕𝒕𝒓𝒂𝒄𝒕𝒊𝒐𝒏 𝒊𝒔 𝒓𝒆𝒂𝒍!"
+    ];
+    const caption = captions[Math.floor(Math.random() * captions.length)];
 
-  // Always select the new background for this specific request
-  let selectedBG = bgLinks[0]; 
+    // === BACKGROUND IMAGE ===
+    const bgURL = "https://i.imgur.com/P8ATVjE.jpeg";
 
-  try {
-    // 1. Fetch and save Avatars
-    let avt1 = (
+    const bgData = (await axios.get(bgURL, { responseType: "arraybuffer" })).data;
+    fs.writeFileSync(pathBG, Buffer.from(bgData));
+
+    // === FETCH AVATARS ===
+    const avt1 = (
       await axios.get(
-        `https://graph.facebook.com/${id1}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        `https://graph.facebook.com/${sender}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
         { responseType: "arraybuffer" }
       )
     ).data;
-    fs.writeFileSync(pathAvt1, Buffer.from(avt1, "utf-8"));
+    fs.writeFileSync(pathAvt1, Buffer.from(avt1));
 
-    let avt2 = (
+    const avt2 = (
       await axios.get(
-        `https://graph.facebook.com/${id2}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        `https://graph.facebook.com/${partner.id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
         { responseType: "arraybuffer" }
       )
     ).data;
-    fs.writeFileSync(pathAvt2, Buffer.from(avt2, "utf-8"));
+    fs.writeFileSync(pathAvt2, Buffer.from(avt2));
 
-    // 2. Fetch and save Background
-    let bg = (
-      await axios.get(selectedBG, { responseType: "arraybuffer" })
-    ).data;
-    fs.writeFileSync(pathImg, Buffer.from(bg, "utf-8"));
+    // === CANVAS ===
+    const bgImg = await loadImage(pathBG);
+    const avatar1 = await loadImage(pathAvt1);
+    const avatar2 = await loadImage(pathAvt2);
 
-    // 3. Load Images onto Canvas
-    let baseBG = await loadImage(pathImg);
-    let baseA1 = await loadImage(pathAvt1);
-    let baseA2 = await loadImage(pathAvt2);
+    const canvas = createCanvas(bgImg.width, bgImg.height);
+    const ctx = canvas.getContext("2d");
 
-    // Create canvas based on the background size
-    let canvas = createCanvas(baseBG.width, baseBG.height); 
-    let ctx = canvas.getContext("2d");
+    ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
 
-    ctx.drawImage(baseBG, 0, 0, canvas.width, canvas.height);
-    
-    // *** COORDINATE ADJUSTMENT (Based on the source image) ***
-    // The source image is roughly 750x500 pixels.
-    // We will place 150x150 avatars over the faces.
+    const size = 150;
 
-    const avatarSize = 150; // Size of the user's avatar circle/square
+    // === CIRCULAR AVATAR DRAW FUNCTION ===
+    function drawCircleImage(img, x, y, size) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2, true);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(img, x, y, size, size);
+      ctx.restore();
+    }
 
-    // Boy (Left) Avatar: Placed over Eren's face
-    // X: ~100, Y: ~100
-    ctx.drawImage(baseA1, 100, 100, avatarSize, avatarSize);
+    // Place avatars
+    drawCircleImage(avatar1, 100, 100, size);
+    drawCircleImage(avatar2, 450, 100, size);
 
-    // Female (Right) Avatar: Placed over Mikasa's face
-    // X: ~450, Y: ~100
-    ctx.drawImage(baseA2, 450, 100, avatarSize, avatarSize);
-    
-    // --- DRAWING A RECTANGLE (PP Retrangle) ---
-    // If you want a bounding box around the boy (left) and the female (right):
-    // Drawing a simple red border for demonstration. You can remove this.
-    /*
-    ctx.strokeStyle = '#FF0000'; // Red color
-    ctx.lineWidth = 4;
+    fs.writeFileSync(pathFinal, canvas.toBuffer());
 
-    // Rectangle around Boy (Left) Avatar
-    ctx.strokeRect(100, 100, avatarSize, avatarSize);
-
-    // Rectangle around Female (Right) Avatar
-    ctx.strokeRect(450, 100, avatarSize, avatarSize);
-    */
-    // If you want the background to be scaled to a specific size like 1200x600, 
-    // you would need more advanced coordinate mapping. 
-    // For simplicity, we are using the original image size and placing avatars over the faces.
-
-
-    // 4. Save Final Image
-    fs.writeFileSync(pathImg, canvas.toBuffer());
-    
-  } catch (e) {
-      // General error handling for image creation/fetching
-      console.error("Error generating image in pair command:", e);
-      // Clean up intermediate files
-      if (fs.existsSync(pathAvt1)) fs.removeSync(pathAvt1);
-      if (fs.existsSync(pathAvt2)) fs.removeSync(pathAvt2);
-      return api.sendMessage(`An error occurred during image processing: ${e.message}`, event.threadID, event.messageID);
-  } finally {
-      // Ensure Avatars are removed after processing
-      if (fs.existsSync(pathAvt1)) fs.removeSync(pathAvt1);
-      if (fs.existsSync(pathAvt2)) fs.removeSync(pathAvt2);
-  }
-
-  // Final message sending
-  return api.sendMessage(
-    {
-      body:
+    return api.sendMessage(
+      {
+        body:
 `${caption}
 
-✨ 𝗣𝗮𝗶𝗿𝗲𝗱: ${name1} 💞 ${name2}
-💘 𝗖𝗼𝗺𝗽𝗮𝘁𝗶𝗯𝗶𝗹𝗶𝘁𝘆: ${compatibility}${isInfinity ? '' : '%'}`, // Removes '%' if compatibility is infinity
-      mentions: [{ tag: name2, id: id2 }],
-      attachment: fs.createReadStream(pathImg)
-    },
-    event.threadID,
-    () => fs.unlinkSync(pathImg), // Clean up final image after sending
-    event.messageID
-  );
+💞 **Paired:** ${senderName} × ${partnerName}
+🎯 **Compatibility:** ${compatibility}${compatibility === "♾️" ? "" : "%"}`,
+        attachment: fs.createReadStream(pathFinal),
+        mentions: [{ tag: partnerName, id: partner.id }],
+      },
+      event.threadID,
+      () => {
+        // cleanup
+        fs.removeSync(pathFinal);
+        fs.removeSync(pathBG);
+        fs.removeSync(pathAvt1);
+        fs.removeSync(pathAvt2);
+      },
+      event.messageID
+    );
+
+  } catch (err) {
+    console.log(err);
+    return api.sendMessage("❌ Error in pair command: " + err.message, event.threadID, event.messageID);
+  }
 };
