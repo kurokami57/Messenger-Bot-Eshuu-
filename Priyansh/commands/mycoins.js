@@ -1,45 +1,40 @@
 module.exports.config = {
-	name: "coin",
-	version: "1.0.2",
-	hasPermssion: 0,
-	credits: "𝐏𝐫𝐢𝐲𝐚𝐧𝐬𝐡 𝐑𝐚𝐣𝐩𝐮𝐭",
-	description: "Check the amount of yourself or the person tagged",
-	commandCategory: "economy",
-	usages: "[Tag]",
-	cooldowns: 5
+  name: "top",
+  version: "2.0.0",
+  hasPermssion: 0,
+  credits: "Nerob",
+  description: "Top richest users",
+  commandCategory: "Economy",
+  usages: "top | topbal | topbalance",
+  aliases: ["topbal", "topbalance"],
+  cooldowns: 2
 };
 
-module.exports.languages = {
-	"vi": {
-		"sotienbanthan": "Số tiền bạn đang có: %1$",
-		"sotiennguoikhac": "Số tiền của %1 hiện đang có là: %2$"
-	},
-	"en": {
-		"sotienbanthan": "Your current balance: %1$",
-		"sotiennguoikhac": "%1's current balance: %2$."
-	}
+function formatShort(num) {
+  if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
+  if (num >= 1e9)  return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6)  return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3)  return (num / 1e3).toFixed(2) + "K";
+  return num.toString();
 }
 
-module.exports.run = async function({ api, event, args, Currencies, getText }) {
-	const { threadID, messageID, senderID, mentions } = event;
+module.exports.run = async ({ api, event, Currencies, Users }) => {
+  
+  const all = await Currencies.getAll();
+  all.sort((a, b) => b.money - a.money);
 
-	if (!args[0]) {
-		const money = (await Currencies.getData(senderID)).money;
-		return api.sendMessage(getText("sotienbanthan", money), threadID, messageID);
-	}
+  let msg = "💰 TOP 10 RICHEST USERS 💰\n\n";
 
-	else if (Object.keys(event.mentions).length == 1) {
-		var mention = Object.keys(mentions)[0];
-		var money = (await Currencies.getData(mention)).money;
-		if (!money) money = 0;
-		return api.sendMessage({
-			body: getText("sotiennguoikhac", mentions[mention].replace(/\@/g, ""), money),
-			mentions: [{
-				tag: mentions[mention].replace(/\@/g, ""),
-				id: mention
-			}]
-		}, threadID, messageID);
-	}
+  let count = 0;
+  for (const user of all.slice(0, 10)) {
+    count++;
+    const name = await Users.getNameUser(user.userID);
 
-	else return global.utils.throwError(this.config.name, threadID, messageID);
-}
+    const shortMoney = formatShort(user.money); 
+    const finalMoney = `${global.currencySymbol}${shortMoney} ${global.currencyName}`;
+
+    msg += `${count}. ${name} — ${finalMoney}\n`;
+  }
+
+  api.sendMessage(msg, event.threadID, event.messageID);
+};
