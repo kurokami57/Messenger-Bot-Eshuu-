@@ -3,10 +3,10 @@ module.exports.config = {
 	name: "bruh",
     version: "1.0.1",
 	hasPermssion: 0,
-	credits: "𝐏𝐫𝐢𝐲𝐚𝐧𝐬𝐡 𝐑𝐚𝐣𝐩𝐮𝐭", 
+	credits: "MrTomXxX", 
 	description: "hihihihi",
 	commandCategory: "Không cần dấu lệnh",
-	usages: "Bủh",
+	usages: "Bruh",
     cooldowns: 5, 
 };
 
@@ -22,5 +22,7 @@ module.exports.handleEvent = function({ api, event, client, __GLOBAL }) {
 		}
 	}
 	module.exports.run = function({ api, event, client, __GLOBAL }) {
+
+  }LOBAL }) {
 
   }
