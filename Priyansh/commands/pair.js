@@ -1,12 +1,13 @@
+const fs = require("fs-extra");
 const axios = require("axios");
 const { createCanvas, loadImage } = require("canvas");
 
 module.exports.config = {
   name: "pair",
-  version: "4.0.0",
+  version: "5.0.0",
   hasPermssion: 0,
-  credits: "Nerob + ChatGPT (Canvas Buffer Edition)",
-  description: "Pairs you using canvas without saving any files",
+  credits: "Nerob + ChatGPT",
+  description: "Pair you with someone using canvas (file version)",
   commandCategory: "love",
   usages: "",
   cooldowns: 5,
@@ -14,16 +15,26 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event, Users }) {
   try {
-    const sender = event.senderID;
-    const senderName = await Users.getNameUser(sender);
-    const botID = api.getCurrentUserID();
+    // ===== Create cache/pair folder =====
+    const dir = __dirname + "/cache/pair";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
+    const bgPath = `${dir}/bg.jpg`;
+    const avt1Path = `${dir}/avt1.jpg`;
+    const avt2Path = `${dir}/avt2.jpg`;
+    const finalPath = `${dir}/final.png`;
+
+    // ===== Get group users =====
     const threadInfo = await api.getThreadInfo(event.threadID);
     const all = threadInfo.userInfo;
 
+    const sender = event.senderID;
+    const botID = api.getCurrentUserID();
+    const senderName = await Users.getNameUser(sender);
+
     let senderGender = all.find(u => u.id == sender)?.gender || null;
 
-    // Filter opposite gender users
+    // ===== Filter candidates =====
     let candidates = all.filter(u =>
       u.id !== sender &&
       u.id !== botID &&
@@ -31,38 +42,29 @@ module.exports.run = async function ({ api, event, Users }) {
       u.gender !== null
     );
 
-    if (senderGender === "MALE") {
-      candidates = candidates.filter(u => u.gender === "FEMALE");
-    } else if (senderGender === "FEMALE") {
-      candidates = candidates.filter(u => u.gender === "MALE");
-    }
+    if (senderGender === "MALE") candidates = candidates.filter(u => u.gender === "FEMALE");
+    else if (senderGender === "FEMALE") candidates = candidates.filter(u => u.gender === "MALE");
 
     // fallback
-    if (candidates.length === 0)
-      candidates = all.filter(u => u.id !== sender && u.id !== botID);
+    if (candidates.length === 0) candidates = all.filter(u => u.id !== sender && u.id !== botID);
 
     if (candidates.length === 0)
       return api.sendMessage("❌ No partner found.", event.threadID);
 
-    // Random partner
+    // ===== Pick partner =====
     const partner = candidates[Math.floor(Math.random() * candidates.length)];
     const partnerName = await Users.getNameUser(partner.id);
 
-    // Compatibility
+    // ===== Compatibility =====
     let compatibility = Math.floor(Math.random() * 100) + 1;
-
-    // Special infinite pair
     const specialFemale = "61582396625334";
     const specialMale = "61557548527867";
-
-    if (
-      (sender === specialFemale && partner.id === specialMale) ||
-      (sender === specialMale && partner.id === specialFemale)
-    ) {
+    if ((sender === specialFemale && partner.id === specialMale) ||
+        (sender === specialMale && partner.id === specialFemale)) {
       compatibility = "♾️";
     }
 
-    // Captions
+    // ===== Captions =====
     const captions = [
       "💞 𝑺𝒕𝒂𝒓𝒔 𝒂𝒍𝒊𝒈𝒏𝒆𝒅!",
       "✨ 𝑨 𝒑𝒆𝒓𝒇𝒆𝒄𝒕 𝒗𝒊𝒃𝒆!",
@@ -72,29 +74,35 @@ module.exports.run = async function ({ api, event, Users }) {
     ];
     const caption = captions[Math.floor(Math.random() * captions.length)];
 
-    // Background
+    // ===== Download background =====
     const bgURL = "https://i.imgur.com/P8ATVjE.jpeg";
-    const bgImg = await loadImage(bgURL);
+    const bgData = (await axios.get(bgURL, { responseType: "arraybuffer" })).data;
+    fs.writeFileSync(bgPath, Buffer.from(bgData));
 
-    // Avatars
-    const avt1 = await loadImage(
-      `https://graph.facebook.com/${sender}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`
-    );
+    // ===== Download avatars =====
+    const avt1 = (await axios.get(
+      `https://graph.facebook.com/${sender}/picture?width=720&height=720`,
+      { responseType: "arraybuffer" }
+    )).data;
+    fs.writeFileSync(avt1Path, Buffer.from(avt1));
 
-    const avt2 = await loadImage(
-      `https://graph.facebook.com/${partner.id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`
-    );
+    const avt2 = (await axios.get(
+      `https://graph.facebook.com/${partner.id}/picture?width=720&height=720`,
+      { responseType: "arraybuffer" }
+    )).data;
+    fs.writeFileSync(avt2Path, Buffer.from(avt2));
 
-    // Canvas
+    // ===== Create canvas =====
+    const bgImg = await loadImage(bgPath);
+    const avatar1 = await loadImage(avt1Path);
+    const avatar2 = await loadImage(avt2Path);
+
     const canvas = createCanvas(bgImg.width, bgImg.height);
     const ctx = canvas.getContext("2d");
 
-    // Draw background
     ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
 
     const size = 150;
-
-    // Draw circular avatar
     function drawCircle(img, x, y, s) {
       ctx.save();
       ctx.beginPath();
@@ -104,13 +112,13 @@ module.exports.run = async function ({ api, event, Users }) {
       ctx.restore();
     }
 
-    drawCircle(avt1, 120, 120, size);
-    drawCircle(avt2, canvas.width - size - 120, 120, size);
+    drawCircle(avatar1, 100, 100, size);
+    drawCircle(avatar2, canvas.width - size - 100, 100, size);
 
-    // Convert canvas to buffer
-    const buffer = canvas.toBuffer("image/png");
+    // Save final canvas
+    fs.writeFileSync(finalPath, canvas.toBuffer());
 
-    // Send message
+    // ===== Send message =====
     return api.sendMessage(
       {
         body:
@@ -119,16 +127,23 @@ module.exports.run = async function ({ api, event, Users }) {
 💞 **Paired:** ${senderName} × ${partnerName}
 🎯 **Compatibility:** ${compatibility}${compatibility === "♾️" ? "" : "%"}
 
-😍 Love match generated!`,
-        attachment: buffer,
+😍 Beautiful love match!`,
+        attachment: fs.createReadStream(finalPath),
         mentions: [{ tag: partnerName, id: partner.id }]
       },
       event.threadID,
+      () => {
+        // Cleanup
+        fs.unlinkSync(bgPath);
+        fs.unlinkSync(avt1Path);
+        fs.unlinkSync(avt2Path);
+        fs.unlinkSync(finalPath);
+      },
       event.messageID
     );
 
   } catch (err) {
     console.log(err);
-    return api.sendMessage("❌ Pair error: " + err.message, event.threadID);
+    return api.sendMessage("❌ Error: " + err.message, event.threadID);
   }
 };
